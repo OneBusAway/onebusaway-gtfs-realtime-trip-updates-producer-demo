@@ -9,7 +9,7 @@
   <artifactId>onebusaway-gtfs-realtime-trip-updates-producer-demo</artifactId>
   <version>0.0.1-SNAPSHOT</version>
   <name>onebusaway-gtfs-realtime-trip-updates-producer-demo</name>
-  <description>A quickstart project demonstrating how to produce a GTFS-realtime trip updates feed.</description>
+  <description>A quickstart project demonstrating how to produce GTFS-realtime trip updates and vehicle positions feeds.</description>
 
   <dependencies>
     <dependency>
