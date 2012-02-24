@@ -48,9 +48,9 @@ import com.google.transit.realtime.GtfsRealtime.VehicleDescriptor;
 import com.google.transit.realtime.GtfsRealtime.VehiclePosition;
 
 /**
- * This class produces GTFS-realtime alerts by periodically polling the custom
- * SEPTA alerts API and converting the resulting alert data into the
- * GTFS-realtime format.
+ * This class produces GTFS-realtime trip updates and vehicle positions by
+ * periodically polling the custom SEPTA vehicle data API and converting the
+ * resulting vehicle data into the GTFS-realtime format.
  * 
  * Since this class implements {@link GtfsRealtimeProvider}, it will
  * automatically be queried by the {@link GtfsRealtimeExporterModule} to export
@@ -74,19 +74,20 @@ public class GtfsRealtimeProviderImpl implements GtfsRealtimeProvider {
   private URL _url;
 
   /**
-   * How often alerts will be downloaded, in seconds.
+   * How often vehicle data will be downloaded, in seconds.
    */
   private int _refreshInterval = 30;
 
   /**
-   * @param url the URL for the SEPTA alerts API.
+   * @param url the URL for the SEPTA vehicle data API.
    */
   public void setUrl(URL url) {
     _url = url;
   }
 
   /**
-   * @param refreshInterval how often alerts will be downloaded, in seconds.
+   * @param refreshInterval how often vehicle data will be downloaded, in
+   *          seconds.
    */
   public void setRefreshInterval(int refreshInterval) {
     _refreshInterval = refreshInterval;
@@ -94,8 +95,8 @@ public class GtfsRealtimeProviderImpl implements GtfsRealtimeProvider {
 
   /**
    * The start method automatically starts up a recurring task that periodically
-   * downloads the latest alerts from the SEPTA alerts stream and processes
-   * them.
+   * downloads the latest vehicle data from the SEPTA vehicle stream and
+   * processes them.
    */
   @PostConstruct
   public void start() {
@@ -106,7 +107,7 @@ public class GtfsRealtimeProviderImpl implements GtfsRealtimeProvider {
   }
 
   /**
-   * The stop method cancels the recurring alert downloader task.
+   * The stop method cancels the recurring vehicle data downloader task.
    */
   @PreDestroy
   public void stop() {
@@ -119,8 +120,8 @@ public class GtfsRealtimeProviderImpl implements GtfsRealtimeProvider {
    ****/
 
   /**
-   * We DO care about trip updates, so we return the most recently generated
-   * alerts feed.
+   * We care about trip updates, so we return the most recently generated trip
+   * updates feed.
    */
   @Override
   public FeedMessage getTripUpdates() {
@@ -129,8 +130,8 @@ public class GtfsRealtimeProviderImpl implements GtfsRealtimeProvider {
   }
 
   /**
-   * We DO care about vehicle positions, so we return the most recently
-   * generated alerts feed.
+   * We care about vehicle positions, so we return the most recently generated
+   * vehicle positions feed.
    */
   @Override
   public FeedMessage getVehiclePositions() {
@@ -151,10 +152,11 @@ public class GtfsRealtimeProviderImpl implements GtfsRealtimeProvider {
    ****/
 
   /**
-   * This method downloads the latest alerts, processes each alert in turn, and
-   * create a GTFS-realtime feed of alerts as a result.
+   * This method downloads the latest vehicle data, processes each vehicle in
+   * turn, and create a GTFS-realtime feed of trip updates and vehicle positions
+   * as a result.
    */
-  private void refreshAlerts() throws IOException, JSONException {
+  private void refreshVehicles() throws IOException, JSONException {
 
     /**
      * We download the vehicle details as an array of JSON objects.
@@ -163,13 +165,13 @@ public class GtfsRealtimeProviderImpl implements GtfsRealtimeProvider {
 
     /**
      * The FeedMessage.Builder is what we will use to build up our GTFS-realtime
-     * feed. We will add alerts to the feed and then save the results.
+     * feeds. We create a feed for both trip updates and vehicle positions.
      */
     FeedMessage.Builder tripUpdates = GtfsRealtimeLibrary.createFeedMessageBuilder();
     FeedMessage.Builder vehiclePositions = GtfsRealtimeLibrary.createFeedMessageBuilder();
 
     /**
-     * We iterate over every JSON alert object.
+     * We iterate over every JSON vehicle object.
      */
     for (int i = 0; i < vehicleArray.length(); ++i) {
 
@@ -181,6 +183,25 @@ public class GtfsRealtimeProviderImpl implements GtfsRealtimeProvider {
       double lon = obj.getDouble("lon");
       int delay = obj.getInt("late");
 
+      /**
+       * We construct a TripDescriptor and VehicleDescriptor, which will be used
+       * in both trip updates and vehicle positions to identify the trip and
+       * vehicle. Ideally, we would have a trip id to use for the trip
+       * descriptor, but the SEPTA api doesn't include it, so we settle for a
+       * route id instead.
+       */
+      TripDescriptor.Builder tripDescriptor = TripDescriptor.newBuilder();
+      tripDescriptor.setRouteId(route);
+
+      VehicleDescriptor.Builder vehicleDescriptor = VehicleDescriptor.newBuilder();
+      vehicleDescriptor.setId(trainNumber);
+
+      /**
+       * To construct our TripUpdate, we create a stop-time arrival event for
+       * the next stop for the vehicle, with the specified arrival delay. We add
+       * the stop-time update to a TripUpdate builder, along with the trip and
+       * vehicle descriptors.
+       */
       StopTimeEvent.Builder arrival = StopTimeEvent.newBuilder();
       arrival.setDelay(delay * 60);
 
@@ -188,25 +209,25 @@ public class GtfsRealtimeProviderImpl implements GtfsRealtimeProvider {
       stopTimeUpdate.setArrival(arrival);
       stopTimeUpdate.setStopId(stopId);
 
-      TripDescriptor.Builder tripDescriptor = TripDescriptor.newBuilder();
-      tripDescriptor.setRouteId(route);
-
-      VehicleDescriptor.Builder vehicleDescriptor = VehicleDescriptor.newBuilder();
-      vehicleDescriptor.setId(trainNumber);
-
       TripUpdate.Builder tripUpdate = TripUpdate.newBuilder();
       tripUpdate.addStopTimeUpdate(stopTimeUpdate);
       tripUpdate.setTrip(tripDescriptor);
       tripUpdate.setVehicle(vehicleDescriptor);
 
       /**
-       * Create a new feed entity to wrap the alert and add it to the
-       * GTFS-realtime feed message.
+       * Create a new feed entity to wrap the trip update and add it to the
+       * GTFS-realtime trip updates feed.
        */
       FeedEntity.Builder tripUpdateEntity = FeedEntity.newBuilder();
       tripUpdateEntity.setId(trainNumber);
       tripUpdateEntity.setTripUpdate(tripUpdate);
       tripUpdates.addEntity(tripUpdateEntity);
+
+      /**
+       * To construct our VehiclePosition, we create a position for the vehicle.
+       * We add the position to a VehiclePosition builder, along with the trip
+       * and vehicle descriptors.
+       */
 
       Position.Builder position = Position.newBuilder();
       position.setLatitude((float) lat);
@@ -217,6 +238,10 @@ public class GtfsRealtimeProviderImpl implements GtfsRealtimeProvider {
       vehiclePosition.setTrip(tripDescriptor);
       vehiclePosition.setVehicle(vehicleDescriptor);
 
+      /**
+       * Create a new feed entity to wrap the vehicle position and add it to the
+       * GTFS-realtime vehicle positions feed.
+       */
       FeedEntity.Builder vehiclePositionEntity = FeedEntity.newBuilder();
       vehiclePositionEntity.setId(trainNumber);
       vehiclePositionEntity.setVehicle(vehiclePosition);
@@ -224,26 +249,28 @@ public class GtfsRealtimeProviderImpl implements GtfsRealtimeProvider {
     }
 
     /**
-     * Build out the final GTFS-realtime feed message and save it.
+     * Build out the final GTFS-realtime feed messagse and save them.
      */
     _tripUpdates = tripUpdates.build();
     _vehiclePositions = vehiclePositions.build();
+
     _log.info("vehicles extracted: " + _tripUpdates.getEntityCount());
   }
 
   /**
-   * @return a JSON array parsed from the data pulled from the SEPTA alerts API.
+   * @return a JSON array parsed from the data pulled from the SEPTA vehicle
+   *         data API.
    */
   private JSONArray downloadVehicleDetails() throws IOException, JSONException {
     BufferedReader reader = new BufferedReader(new InputStreamReader(
         _url.openStream()));
     JSONTokener tokener = new JSONTokener(reader);
-    JSONArray alertArray = new JSONArray(tokener);
-    return alertArray;
+    JSONArray vehiclesArray = new JSONArray(tokener);
+    return vehiclesArray;
   }
 
   /**
-   * Task that will download new alerts from the remote data source when
+   * Task that will download new vehicle data from the remote data source when
    * executed.
    */
   private class VehiclesRefreshTask implements Runnable {
@@ -252,7 +279,7 @@ public class GtfsRealtimeProviderImpl implements GtfsRealtimeProvider {
     public void run() {
       try {
         _log.info("refreshing vehicles");
-        refreshAlerts();
+        refreshVehicles();
       } catch (Exception ex) {
         _log.warn("Error in vehicle refresh task", ex);
       }

@@ -1,10 +1,12 @@
 Description:
-  Simple demo application that converts the SEPTA-specific alerts data into a GTFS-realtime feed
+  Simple demo application that converts the SEPTA-specific vehicle data into a GTFS-realtime feed
   
 Usage:
-  java -jar demo.jar --alertsPath=path
-  java -jar demo.jar --alertsUrl=url 
+  java -jar demo.jar args
 
 Args:
-  --alertsPath=path           write GTFS-realtime alerts to the specified path
-  --alertsUrl=url             share GTFS-realtime alerts at the specified URL (eg. "http://localhost:8080/alerts")
+  --tripUpdatesPath=path           write GTFS-realtime trip updates to the specified path
+  --tripUpdatesUrl=url             share GTFS-realtime trip updates at the specified URL (eg. "http://localhost:8080/trip-updates")
+  --vehiclePositionsPath=path      write GTFS-realtime vehicle positions to the specified path
+  --vehiclePositionsUrl=url        share GTFS-realtime vehicle positions at the specified URL (eg. "http://localhost:8080/vehicle-positions")
+  
