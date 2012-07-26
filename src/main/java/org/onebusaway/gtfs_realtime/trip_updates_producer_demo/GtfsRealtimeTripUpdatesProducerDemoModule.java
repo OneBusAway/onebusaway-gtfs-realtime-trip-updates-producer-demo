@@ -19,7 +19,6 @@ import java.util.Set;
 
 import org.onebusaway.guice.jsr250.JSR250Module;
 import org.onebusway.gtfs_realtime.exporter.GtfsRealtimeExporterModule;
-import org.onebusway.gtfs_realtime.exporter.GtfsRealtimeProvider;
 
 import com.google.inject.AbstractModule;
 import com.google.inject.Module;
@@ -34,8 +33,7 @@ public class GtfsRealtimeTripUpdatesProducerDemoModule extends AbstractModule {
 
   @Override
   protected void configure() {
-    bind(GtfsRealtimeProviderImpl.class);
-    bind(GtfsRealtimeProvider.class).to(GtfsRealtimeProviderImpl.class);
+    bind(GtfsRealtimeProviderImpl.class);    
   }
 
   /**

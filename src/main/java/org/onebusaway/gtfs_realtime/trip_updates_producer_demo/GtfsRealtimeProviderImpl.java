@@ -25,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
+import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import org.json.JSONArray;
@@ -33,6 +34,7 @@ import org.json.JSONObject;
 import org.json.JSONTokener;
 import org.onebusway.gtfs_realtime.exporter.GtfsRealtimeExporterModule;
 import org.onebusway.gtfs_realtime.exporter.GtfsRealtimeLibrary;
+import org.onebusway.gtfs_realtime.exporter.GtfsRealtimeMutableProvider;
 import org.onebusway.gtfs_realtime.exporter.GtfsRealtimeProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,15 +63,13 @@ import com.google.transit.realtime.GtfsRealtime.VehiclePosition;
  * 
  */
 @Singleton
-public class GtfsRealtimeProviderImpl implements GtfsRealtimeProvider {
+public class GtfsRealtimeProviderImpl {
 
   private static final Logger _log = LoggerFactory.getLogger(GtfsRealtimeProviderImpl.class);
 
   private ScheduledExecutorService _executor;
 
-  private volatile FeedMessage _tripUpdates = GtfsRealtimeLibrary.createFeedMessageBuilder().build();
-
-  private volatile FeedMessage _vehiclePositions = GtfsRealtimeLibrary.createFeedMessageBuilder().build();
+  private GtfsRealtimeMutableProvider _gtfsRealtimeProvider;
 
   private URL _url;
 
@@ -77,6 +77,11 @@ public class GtfsRealtimeProviderImpl implements GtfsRealtimeProvider {
    * How often vehicle data will be downloaded, in seconds.
    */
   private int _refreshInterval = 30;
+
+  @Inject
+  public void setGtfsRealtimeProvider(GtfsRealtimeMutableProvider gtfsRealtimeProvider) {
+    _gtfsRealtimeProvider = gtfsRealtimeProvider;
+  }
 
   /**
    * @param url the URL for the SEPTA vehicle data API.
@@ -113,38 +118,6 @@ public class GtfsRealtimeProviderImpl implements GtfsRealtimeProvider {
   public void stop() {
     _log.info("stopping GTFS-realtime service");
     _executor.shutdownNow();
-  }
-
-  /****
-   * {@link GtfsRealtimeProvider} Interface
-   ****/
-
-  /**
-   * We care about trip updates, so we return the most recently generated trip
-   * updates feed.
-   */
-  @Override
-  public FeedMessage getTripUpdates() {
-    return _tripUpdates;
-
-  }
-
-  /**
-   * We care about vehicle positions, so we return the most recently generated
-   * vehicle positions feed.
-   */
-  @Override
-  public FeedMessage getVehiclePositions() {
-    return _vehiclePositions;
-  }
-
-  /**
-   * We don't care about alerts, so we return an empty feed here.
-   */
-  @Override
-  public FeedMessage getAlerts() {
-    FeedMessage.Builder feedMessage = GtfsRealtimeLibrary.createFeedMessageBuilder();
-    return feedMessage.build();
   }
 
   /****
@@ -251,10 +224,10 @@ public class GtfsRealtimeProviderImpl implements GtfsRealtimeProvider {
     /**
      * Build out the final GTFS-realtime feed messagse and save them.
      */
-    _tripUpdates = tripUpdates.build();
-    _vehiclePositions = vehiclePositions.build();
+    _gtfsRealtimeProvider.setTripUpdates(tripUpdates.build());
+    _gtfsRealtimeProvider.setVehiclePositions(vehiclePositions.build());
 
-    _log.info("vehicles extracted: " + _tripUpdates.getEntityCount());
+    _log.info("vehicles extracted: " + tripUpdates.getEntityCount());
   }
 
   /**
